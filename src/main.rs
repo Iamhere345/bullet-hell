@@ -1,6 +1,6 @@
-use bevy::math::Vec3Swizzles;
-use bevy::prelude::*;
+use bevy::{prelude::*, transform};
 use bevy::core::FixedTimestep;
+use bevy::math::Vec3Swizzles;
 
 #[derive(Component)]
 struct MainCamera;
@@ -11,6 +11,11 @@ struct Player;
 #[derive(Default)]
 struct CursorPos {
     pos: Vec2
+}
+
+#[derive(Default)]
+struct LastPlayerPos {
+    pos: Vec3
 }
 
 fn setup_camera(mut commands: Commands) {
@@ -81,10 +86,30 @@ fn update_cursor_pos(mut cursor_res: ResMut<CursorPos>, windows: Res<Windows>, m
     }
 }
 
+fn edge_collision(windows: Res<Windows>, mut last_pos_res: ResMut<LastPlayerPos>, mut plr_transform: Query<&mut Transform, With<Player>>) {
+    let mut transform = plr_transform.get_single_mut().unwrap();
+    let last_pos = last_pos_res.pos;
+    let window = windows.get_primary().unwrap();
+
+    //println!("last position: {}", last_pos);
+    println!("x: {} y: {}, width: {}, height: {}", transform.translation.x, transform.translation.y, window.width() / window.scale_factor() as f32, window.height() / window.scale_factor() as f32);
+
+    if (transform.translation.x >= window.width() / window.scale_factor() as f32 
+        || transform.translation.x <= (window.width() / window.scale_factor() as f32) * -1.0) 
+        || (transform.translation.y >= window.height() / window.scale_factor() as f32 
+        || transform.translation.y <= (window.height() / window.scale_factor() as f32) * -1.0) {
+        println!("out of bounds");
+        transform.translation = last_pos;
+    } else {
+        last_pos_res.pos = transform.translation;
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(CursorPos::default())
+        .insert_resource(LastPlayerPos::default())
         .add_startup_system(setup_camera)
         .add_startup_system(spawn_player)
         .add_system(face_cursor)
@@ -92,7 +117,8 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.03))
-                .with_system(movement),
+                .with_system(movement)
+                .with_system(edge_collision.after(movement)),
         )
         .run();
 }
