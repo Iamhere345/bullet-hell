@@ -1,8 +1,10 @@
 use bevy::prelude::*;
 use bevy::core::FixedTimestep;
+use projectile::move_projectiles;
 use crate::player::*;
 
 pub mod player;
+pub mod projectile;
 
 fn setup_camera(mut commands: Commands) {
     commands
@@ -23,7 +25,13 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.03))
                 .with_system(movement)
+                .with_system(shooting_input)
                 .with_system(edge_collision.after(movement)),
+        )
+        .add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(0.075))
+                .with_system(move_projectiles)
         )
         .run();
 }
