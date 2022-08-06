@@ -1,7 +1,10 @@
-use std::num::*;
+use std::time::Duration;
+
 use bevy::prelude::*;
 use bevy::math::Vec3Swizzles;
 use crate::projectile::*;
+
+const LASER_COOLDOWN_DURATION: Duration = Duration::from_millis(250);
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -12,6 +15,15 @@ pub struct Player;
 #[derive(Default)]
 pub struct CursorPos {
     pub pos: Vec2
+}
+
+#[derive(Default)]
+#[allow(unused)]
+pub struct WeaponCooldown {
+    pub laser: (Timer, bool),
+    pub heavy_laser: (Timer, bool),
+    pub rocket: (Timer, bool),
+    pub seekers: (Timer, bool)
 }
 
 #[derive(Default)]
@@ -37,7 +49,6 @@ pub fn spawn_player(mut commands: Commands) {
 
 pub fn movement(keyboard_input: Res<Input<KeyCode>>, mut player_transform: Query<&mut Transform, With<Player>>) {
     for mut transform in player_transform.iter_mut() {
-        println!("position: {}", transform.translation);
         if keyboard_input.pressed(KeyCode::W) {
             transform.translation.y += 2.0;
         }
@@ -53,12 +64,16 @@ pub fn movement(keyboard_input: Res<Input<KeyCode>>, mut player_transform: Query
     }
 }
 
-pub fn shooting_input(commands: Commands, keyboard_input: Res<Input<KeyCode>>, player_transform: Query<&Transform, With<Player>>) {
+pub fn shooting_input(commands: Commands, keyboard_input: ResMut<Input<KeyCode>>, mut weapon_cooldown: ResMut<WeaponCooldown>, player_transform: Query<&Transform, With<Player>>) {
     let transform = player_transform.get_single().unwrap();
 
-    if keyboard_input.pressed(KeyCode::E) {
-        println!("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE");
-        spawn_projectile(commands, ProjectileType::Laser, *transform, transform.local_y().truncate());
+    println!("weapon already used: {}, timer finished: {}", weapon_cooldown.laser.1, weapon_cooldown.laser.0.finished());
+
+    if keyboard_input.pressed(KeyCode::E) && (!weapon_cooldown.laser.1 || weapon_cooldown.laser.0.finished()) {
+        spawn_projectile(commands, ProjectileType::Laser, *transform, transform.local_y().truncate() * 2.0);
+        weapon_cooldown.laser.1 = true;
+        weapon_cooldown.laser.0.reset();
+        weapon_cooldown.laser.0.set_duration(LASER_COOLDOWN_DURATION);
     }
 }
 
@@ -96,7 +111,7 @@ pub fn edge_collision(windows: Res<Windows>, mut last_pos_res: ResMut<LastPlayer
     let window = windows.get_primary().unwrap();
 
     //println!("last position: {}", last_pos);
-    println!("x: {} y: {}, width: {}, height: {}", transform.translation.x, transform.translation.y, window.width() / window.scale_factor() as f32, window.height() / window.scale_factor() as f32);
+    //println!("x: {} y: {}, width: {}, height: {}", transform.translation.x, transform.translation.y, window.width() / window.scale_factor() as f32, window.height() / window.scale_factor() as f32);
 
     if (transform.translation.x >= window.width() / window.scale_factor() as f32 
         || transform.translation.x <= (window.width() / window.scale_factor() as f32) * -1.0) 

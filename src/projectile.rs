@@ -29,7 +29,7 @@ pub fn spawn_projectile(mut commands: Commands, proj_type: ProjectileType, spawn
         });
 }
 
-pub fn move_projectiles(commands: Commands, mut projectiles: Query<(&Projectile, &mut Transform), With<Projectile>>) {
+pub fn move_projectiles(mut projectiles: Query<(&Projectile, &mut Transform), With<Projectile>>) {
     for (projectile, mut transform) in projectiles.iter_mut() {
         match projectile.projectile_type {
             ProjectileType::Laser => {

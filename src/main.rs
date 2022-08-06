@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::core::FixedTimestep;
 use projectile::move_projectiles;
-use crate::player::*;
+use player::*;
 
 pub mod player;
 pub mod projectile;
@@ -12,15 +12,21 @@ fn setup_camera(mut commands: Commands) {
         .insert(MainCamera);
 }
 
+fn tick_timers(time: Res<Time>, mut weapon_debounce: ResMut<WeaponCooldown>) {
+    weapon_debounce.laser.0.tick(time.delta());
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .insert_resource(CursorPos::default())
         .insert_resource(LastPlayerPos::default())
+        .insert_resource(WeaponCooldown::default())
         .add_startup_system(setup_camera)
         .add_startup_system(spawn_player)
         .add_system(face_cursor)
         .add_system(update_cursor_pos.before(face_cursor))
+        .add_system(tick_timers)
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.03))
@@ -30,7 +36,7 @@ fn main() {
         )
         .add_system_set(
             SystemSet::new()
-                .with_run_criteria(FixedTimestep::step(0.075))
+                .with_run_criteria(FixedTimestep::step(0.025))
                 .with_system(move_projectiles)
         )
         .run();
