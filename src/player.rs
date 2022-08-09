@@ -4,8 +4,6 @@ use bevy::prelude::*;
 use bevy::math::Vec3Swizzles;
 use crate::projectile::*;
 
-const LASER_COOLDOWN_DURATION: Duration = Duration::from_millis(250);
-
 #[derive(Component)]
 pub struct MainCamera;
 
@@ -17,18 +15,48 @@ pub struct CursorPos {
     pub pos: Vec2
 }
 
+pub struct WeaponSlot {
+    pub cooldown: (Timer, bool),
+    pub cooldown_duration: Duration,
+    pub weapon_type: ProjectileType,
+    pub speed: f32,
+    pub damage: f32,
+    pub range: f32,
+    pub keybind: KeyCode
+}
+
 #[derive(Default)]
-#[allow(unused)]
-pub struct WeaponCooldown {
-    pub laser: (Timer, bool),
-    pub heavy_laser: (Timer, bool),
-    pub rocket: (Timer, bool),
-    pub seekers: (Timer, bool)
+pub struct PlayerInfo {
+    pub weapons: Vec<WeaponSlot>,
 }
 
 #[derive(Default)]
 pub struct LastPlayerPos {
     pub pos: Vec3
+}
+
+impl WeaponSlot {
+    fn new(_weapon_type: ProjectileType, _cooldown_duration: Duration,  _speed: f32, _damage: f32, _range: f32, _keybind: KeyCode) -> Self {
+        WeaponSlot { 
+            cooldown: (Timer::new(Duration::new(0,0), false), false),
+            cooldown_duration: _cooldown_duration,
+            weapon_type: _weapon_type,
+            speed: _speed,
+            damage: _damage,
+            range: _range,
+            keybind: _keybind
+        }
+    }
+}
+
+impl PlayerInfo {
+    pub fn new() -> Self {
+        PlayerInfo {
+            weapons: vec![
+                WeaponSlot::new(ProjectileType::Laser, Duration::from_millis(250), 2.0, 20.0, 50.0, KeyCode::E)
+            ]
+        }
+    }
 }
 
 pub fn spawn_player(mut commands: Commands) {
@@ -64,17 +92,18 @@ pub fn movement(keyboard_input: Res<Input<KeyCode>>, mut player_transform: Query
     }
 }
 
-pub fn shooting_input(commands: Commands, keyboard_input: ResMut<Input<KeyCode>>, mut weapon_cooldown: ResMut<WeaponCooldown>, player_transform: Query<&Transform, With<Player>>) {
+pub fn shooting_input(mut commands: Commands, keyboard_input: ResMut<Input<KeyCode>>, mut player_info: ResMut<PlayerInfo>, player_transform: Query<&Transform, With<Player>>) {
     let transform = player_transform.get_single().unwrap();
-
-    println!("weapon already used: {}, timer finished: {}", weapon_cooldown.laser.1, weapon_cooldown.laser.0.finished());
-
-    if keyboard_input.pressed(KeyCode::E) && (!weapon_cooldown.laser.1 || weapon_cooldown.laser.0.finished()) {
-        spawn_projectile(commands, ProjectileType::Laser, *transform, transform.local_y().truncate() * 2.0);
-        weapon_cooldown.laser.1 = true;
-        weapon_cooldown.laser.0.reset();
-        weapon_cooldown.laser.0.set_duration(LASER_COOLDOWN_DURATION);
+    
+    for weapon in player_info.weapons.iter_mut() {
+        if keyboard_input.pressed(weapon.keybind) && (!weapon.cooldown.1 || weapon.cooldown.0.finished()) {
+            spawn_projectile(&mut commands, weapon.weapon_type, *transform, transform.local_y().truncate() * weapon.speed);
+            weapon.cooldown.1 = true;
+            weapon.cooldown.0.reset();
+            weapon.cooldown.0.set_duration(weapon.cooldown_duration)
+        }
     }
+
 }
 
 pub fn face_cursor(cursor_pos: Res<CursorPos>, mut player_transform: Query<&mut Transform, With<Player>>) {
@@ -121,5 +150,11 @@ pub fn edge_collision(windows: Res<Windows>, mut last_pos_res: ResMut<LastPlayer
         transform.translation = last_pos;
     } else {
         last_pos_res.pos = transform.translation;
+    }
+}
+
+pub fn tick_cooldowns(time: Res<Time>, mut plr_info: ResMut<PlayerInfo>) {
+    for weapon in plr_info.weapons.iter_mut() {
+        weapon.cooldown.0.tick(time.delta());
     }
 }
