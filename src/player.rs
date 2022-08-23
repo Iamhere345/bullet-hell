@@ -186,7 +186,7 @@ pub fn update_cursor_pos(
 
         let ndc = (screen_pos / window_size) * 2.0 - Vec2::ONE;
 
-        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix.inverse();
+        let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
 
         let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
 

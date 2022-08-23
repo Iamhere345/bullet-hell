@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use bevy::core::FixedTimestep;
+use bevy::time::FixedTimestep;
 use bevy::prelude::*;
 use bevy_tweening::*;
-use enemy::{EnemyInitInfo, Enemy, EnemyType, EnemyDiedEvent, enemy_movement};
+use enemy::{EnemyInitInfo, Enemy, EnemyType, EnemyDiedEvent, tween_enemy_movement};
 use level::*;
 use player::*;
 use projectile::*;
@@ -15,7 +15,7 @@ pub mod projectile;
 
 fn setup_camera(mut commands: Commands) {
     commands
-        .spawn_bundle(OrthographicCameraBundle::new_2d())
+        .spawn_bundle(Camera2dBundle::default())
         .insert(MainCamera);
 }
 
@@ -132,7 +132,7 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(0.03))
                 .with_system(movement)
-                .with_system(enemy_movement)
+                .with_system(tween_enemy_movement)
                 .with_system(shooting_input)
                 .with_system(edge_collision.after(movement))
                 .with_system(projectile_collision.after(movement))

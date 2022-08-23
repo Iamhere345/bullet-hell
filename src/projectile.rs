@@ -89,12 +89,13 @@ pub fn projectile_collision(
 
                     if collision_result.is_some() {
                         //don't need to unwrap the collision for anything yet
-                        println!("hit");
 
                         // so the player can't shoot themself
                         if target_entity.id() == player.id() && projectile.player {
                             continue;
                         }
+
+                        println!("hit");
 
                         let new_health = target_health.take_damage(projectile.damage);
 
@@ -104,6 +105,7 @@ pub fn projectile_collision(
                         println!("{:?}", target_health);
 
                         if target_health.health <= 0.0 && target_entity.id() != player.id() && projectile.player {
+                            println!("enemy died");
                             commands.entity(target_entity).despawn();
                             enemy_died_ev.send(EnemyDiedEvent);
                         }
@@ -118,7 +120,6 @@ pub fn projectile_collision(
 
         if collision {
             commands.entity(entity).despawn();
-            
         }
     }
 }
@@ -131,8 +132,6 @@ pub fn projectile_range(
     let window = windows.get_primary().unwrap();
 
     for (projectile, transform, entity) in projectiles.iter_mut() {
-        let pos = transform.translation.truncate();
-        let range = projectile.range;
 
         if (transform.translation.x >= window.width() / window.scale_factor() as f32
             || transform.translation.x <= (window.width() / window.scale_factor() as f32) * -1.0)

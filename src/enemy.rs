@@ -1,6 +1,8 @@
 use crate::player::Health;
 use crate::player::WeaponSlot;
 use bevy::prelude::*;
+use bevy_tweening::*;
+use bevy_tweening::lens::TransformPositionLens;
 use rand::*;
 use std::time::Duration;
 
@@ -24,7 +26,7 @@ pub struct EnemyInitInfo {
 
 pub struct EnemyDiedEvent;
 
-const MOVE_TIME_MILLIS: i32 = 3000;
+const MOVE_TIME_MILLIS: u64 = 2000;
 
 pub fn spawn_enemy(
     mut commands: &mut Commands,
@@ -54,7 +56,7 @@ pub fn spawn_enemy(
         .insert(weapon);
 }
 
-pub fn enemy_movement(
+/*pub fn enemy_movement(
     windows: Res<Windows>,
     time: Res<Time>,
     mut enemies: Query<(&Enemy, &mut Transform, &WeaponSlot)>,
@@ -98,4 +100,51 @@ pub fn enemy_movement(
             }
         }
     }
+}
+*/
+pub fn tween_enemy_movement(
+    mut commands: Commands,
+    windows: Res<Windows>,
+    mut enemies: Query<(&Enemy, &Transform, &WeaponSlot, Entity)>
+) {
+    let window = windows.get_primary().unwrap();
+
+    for (mut enemy, mut transform, weapon, entity) in enemies.iter_mut() {
+        let mut rng = rand::thread_rng();
+
+        println!("enemy id: {}", entity.id());
+
+        //todo make move change a property of the enemy
+        let move_rng = rng.gen_bool(1.0 / 60.0);
+
+        if !move_rng {
+            continue;
+        }
+
+        let x_rng: f32 = rng.gen_range(
+            (window.width()/* / window.scale_factor() as f32*/) / 2.0 * -1.0
+                ..(window.width()/*  / window.scale_factor() as f32*/) / 2.0,
+        );
+        let y_rng: f32 = rng.gen_range(
+            (window.height()/* / window.scale_factor() as f32*/) / 2.0 * -1.0
+                ..(window.height()/* / window.scale_factor() as f32*/) / 2.0,
+        );
+
+        let mut tween = Tween::new(
+            EaseFunction::QuadraticOut,
+            TweeningType::Once,
+            Duration::from_millis(MOVE_TIME_MILLIS * (x_rng as u64 + y_rng as u64) / 10),
+            TransformPositionLens {
+                start: transform.translation,
+                end: Vec3::new(x_rng, y_rng, 10.0)
+            }
+        );
+
+        tween.set_completed(|ent, tween_| {
+            println!("tween completed")
+        });
+
+        commands.entity(entity).insert(Animator::new(tween));
+    }
+    println!("======");
 }

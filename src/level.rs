@@ -42,6 +42,7 @@ pub fn next_level(
 
         // clear current level
         for ent in enemies.iter() {
+            println!("enemy id: {}", ent.id());
             commands.entity(ent).despawn();
         }
 
