@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use bevy::prelude::*;
-use bevy::math::Vec3Swizzles;
 use crate::projectile::*;
+use bevy::math::Vec3Swizzles;
+use bevy::prelude::*;
 
 #[derive(Component)]
 pub struct MainCamera;
@@ -12,17 +12,23 @@ pub struct Player;
 
 #[derive(Default)]
 pub struct CursorPos {
-    pub pos: Vec2
+    pub pos: Vec2,
 }
 
+#[derive(Component, Clone, Copy, Debug)]
+pub struct Health {
+    pub health: f32,
+    pub armour: f32,
+}
+
+#[derive(Component, Clone)]
 pub struct WeaponSlot {
     pub cooldown: (Timer, bool),
     pub cooldown_duration: Duration,
     pub weapon_type: ProjectileType,
     pub speed: f32,
     pub damage: f32,
-    pub range: f32,
-    pub keybind: KeyCode
+    pub keybind: KeyCode,
 }
 
 #[derive(Default)]
@@ -32,19 +38,43 @@ pub struct PlayerInfo {
 
 #[derive(Default)]
 pub struct LastPlayerPos {
-    pub pos: Vec3
+    pub pos: Vec3,
+}
+
+impl Health {
+    pub fn take_damage(mut self, damage: f32) -> Self {
+        if self.armour > 0.0 {
+            let health_and_armour = self.armour - damage;
+
+            if health_and_armour < 0.0 {
+                self.armour = 0.0;
+                self.health -= health_and_armour * -1.0 //if the damage gets past the armour (i.e <0) subtract the amount below zero from the health
+            } else {
+                self.armour -= damage;
+            }
+        } else {
+            self.health -= damage;
+        }
+
+        self
+    }
 }
 
 impl WeaponSlot {
-    fn new(_weapon_type: ProjectileType, _cooldown_duration: Duration,  _speed: f32, _damage: f32, _range: f32, _keybind: KeyCode) -> Self {
-        WeaponSlot { 
-            cooldown: (Timer::new(Duration::new(0,0), false), false),
+    pub fn new(
+        _weapon_type: ProjectileType,
+        _cooldown_duration: Duration,
+        _speed: f32,
+        _damage: f32,
+        _keybind: KeyCode,
+    ) -> Self {
+        WeaponSlot {
+            cooldown: (Timer::new(Duration::new(0, 0), false), false),
             cooldown_duration: _cooldown_duration,
             weapon_type: _weapon_type,
             speed: _speed,
             damage: _damage,
-            range: _range,
-            keybind: _keybind
+            keybind: _keybind,
         }
     }
 }
@@ -52,9 +82,13 @@ impl WeaponSlot {
 impl PlayerInfo {
     pub fn new() -> Self {
         PlayerInfo {
-            weapons: vec![
-                WeaponSlot::new(ProjectileType::Laser, Duration::from_millis(250), 2.0, 20.0, 50.0, KeyCode::E)
-            ]
+            weapons: vec![WeaponSlot::new(
+                ProjectileType::Laser,
+                Duration::from_millis(250),
+                2.0,
+                20.0,
+                KeyCode::E,
+            )],
         }
     }
 }
@@ -63,7 +97,7 @@ pub fn spawn_player(mut commands: Commands) {
     commands
         .spawn_bundle(SpriteBundle {
             sprite: Sprite {
-                color: Color::rgb(1.0,1.0,1.0),
+                color: Color::rgb(1.0, 1.0, 1.0),
                 ..default()
             },
             transform: Transform {
@@ -72,10 +106,17 @@ pub fn spawn_player(mut commands: Commands) {
             },
             ..default()
         })
-        .insert(Player);
+        .insert(Player)
+        .insert(Health {
+            health: 100.0,
+            armour: 100.0,
+        });
 }
 
-pub fn movement(keyboard_input: Res<Input<KeyCode>>, mut player_transform: Query<&mut Transform, With<Player>>) {
+pub fn movement(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut player_transform: Query<&mut Transform, With<Player>>,
+) {
     for mut transform in player_transform.iter_mut() {
         if keyboard_input.pressed(KeyCode::W) {
             transform.translation.y += 2.0;
@@ -92,21 +133,38 @@ pub fn movement(keyboard_input: Res<Input<KeyCode>>, mut player_transform: Query
     }
 }
 
-pub fn shooting_input(mut commands: Commands, keyboard_input: ResMut<Input<KeyCode>>, mut player_info: ResMut<PlayerInfo>, player_transform: Query<&Transform, With<Player>>) {
+pub fn shooting_input(
+    mut commands: Commands,
+    keyboard_input: ResMut<Input<KeyCode>>,
+    mut player_info: ResMut<PlayerInfo>,
+    player_transform: Query<&Transform, With<Player>>,
+) {
     let transform = player_transform.get_single().unwrap();
-    
+
     for weapon in player_info.weapons.iter_mut() {
-        if keyboard_input.pressed(weapon.keybind) && (!weapon.cooldown.1 || weapon.cooldown.0.finished()) {
-            spawn_projectile(&mut commands, weapon.weapon_type, *transform, transform.local_y().truncate() * weapon.speed);
+        if keyboard_input.pressed(weapon.keybind)
+            && (!weapon.cooldown.1 || weapon.cooldown.0.finished())
+        {
+            spawn_projectile(
+                &mut commands,
+                weapon.weapon_type,
+                *transform,
+                transform.local_y().truncate() * weapon.speed,
+                weapon.damage,
+                weapon.damage,
+                true,
+            );
             weapon.cooldown.1 = true;
             weapon.cooldown.0.reset();
             weapon.cooldown.0.set_duration(weapon.cooldown_duration)
         }
     }
-
 }
 
-pub fn face_cursor(cursor_pos: Res<CursorPos>, mut player_transform: Query<&mut Transform, With<Player>>) {
+pub fn face_cursor(
+    cursor_pos: Res<CursorPos>,
+    mut player_transform: Query<&mut Transform, With<Player>>,
+) {
     for mut transform in &mut player_transform.iter_mut() {
         let mouse_rot = (cursor_pos.pos - transform.translation.xy()).normalize();
         let rotate_player = Quat::from_rotation_arc(Vec3::Y, mouse_rot.extend(0.0));
@@ -114,7 +172,11 @@ pub fn face_cursor(cursor_pos: Res<CursorPos>, mut player_transform: Query<&mut 
     }
 }
 
-pub fn update_cursor_pos(mut cursor_res: ResMut<CursorPos>, windows: Res<Windows>, main_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>) {
+pub fn update_cursor_pos(
+    mut cursor_res: ResMut<CursorPos>,
+    windows: Res<Windows>,
+    main_camera: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
+) {
     let (camera, camera_transform) = main_camera.single();
 
     let window = windows.get_primary().unwrap();
@@ -134,7 +196,11 @@ pub fn update_cursor_pos(mut cursor_res: ResMut<CursorPos>, windows: Res<Windows
     }
 }
 
-pub fn edge_collision(windows: Res<Windows>, mut last_pos_res: ResMut<LastPlayerPos>, mut plr_transform: Query<&mut Transform, With<Player>>) {
+pub fn edge_collision(
+    windows: Res<Windows>,
+    mut last_pos_res: ResMut<LastPlayerPos>,
+    mut plr_transform: Query<&mut Transform, With<Player>>,
+) {
     let mut transform = plr_transform.get_single_mut().unwrap();
     let last_pos = last_pos_res.pos;
     let window = windows.get_primary().unwrap();
@@ -142,10 +208,11 @@ pub fn edge_collision(windows: Res<Windows>, mut last_pos_res: ResMut<LastPlayer
     //println!("last position: {}", last_pos);
     //println!("x: {} y: {}, width: {}, height: {}", transform.translation.x, transform.translation.y, window.width() / window.scale_factor() as f32, window.height() / window.scale_factor() as f32);
 
-    if (transform.translation.x >= window.width() / window.scale_factor() as f32 
-        || transform.translation.x <= (window.width() / window.scale_factor() as f32) * -1.0) 
-        || (transform.translation.y >= window.height() / window.scale_factor() as f32 
-        || transform.translation.y <= (window.height() / window.scale_factor() as f32) * -1.0) {
+    if (transform.translation.x >= window.width() / window.scale_factor() as f32
+        || transform.translation.x <= (window.width() / window.scale_factor() as f32) * -1.0)
+        || (transform.translation.y >= window.height() / window.scale_factor() as f32
+            || transform.translation.y <= (window.height() / window.scale_factor() as f32) * -1.0)
+    {
         println!("out of bounds");
         transform.translation = last_pos;
     } else {
